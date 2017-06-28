@@ -72,8 +72,40 @@ module UI
   end
 end
 
+module GameHandler
+  extend UI, UX
+
+  class << self
+    def display_goodbye_message
+      prompt "Thanks for playing. Bye!"
+    end
+
+    def display_welcome_message
+      clear_screen
+      prompt "Welcome to Tic-Tac-Toe!"
+    end
+
+    def rematch?
+      answer = get_char(message:     "Would you like to play again?",
+                        expected:    %w[y n],
+                        invalid_msg: "Please choose 'y' or 'n'")
+      answer == "y"
+    end
+
+    def start_ttt
+      display_welcome_message
+      players = [Human.new("X"), Computer.new("O")]
+      loop do
+        Game.new(players, Board.new).play
+        break display_goodbye_message unless rematch?
+        clear_screen
+      end
+    end
+  end
+end
+
 class Game
-  include UX, UI
+  include UI, UX
 
   def initialize(players, board)
     @player1, @player2 = players
@@ -83,7 +115,7 @@ class Game
   def play
     intro
     next_move until finished?
-    finish
+    outro
   end
 
   private
@@ -102,27 +134,16 @@ class Game
     puts board
   end
 
-  def display_goodbye_message
-    prompt "Thanks for playing. Bye!"
-  end
-
   def display_result
     return prompt "#{winner} wins!" if winner
 
     prompt "It's a tie!"
   end
 
-  def display_welcome_message
-    prompt "Welcome to Tic-Tac-Toe!"
+  def display_marks_info
     prompt "Player marks are:"
     players.each { |player| puts TXT_MARGIN + "#{player.mark} - #{player}" }
     puts
-  end
-
-  def finish
-    display_board
-    display_result
-    display_goodbye_message
   end
 
   def finished?
@@ -130,8 +151,7 @@ class Game
   end
 
   def intro
-    clear_screen
-    display_welcome_message
+    display_marks_info
     wait_for_any_key
     clear_screen
   end
@@ -141,6 +161,11 @@ class Game
     current_player.make_move(board)
     adjust_sequence
     clear_screen
+  end
+
+  def outro
+    display_board
+    display_result
   end
 
   def players
@@ -290,7 +315,7 @@ class Player
 end
 
 class Human < Player
-  include UX, UI
+  include UI, UX
 
   def choose_move(_board)
     get_char(message: "Please choose a move:").to_i
@@ -320,4 +345,4 @@ class Computer < Player
   end
 end
 
-Game.new([Human.new("X"), Computer.new("O")], Board.new).play
+GameHandler.start_ttt
