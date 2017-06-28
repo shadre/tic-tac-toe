@@ -5,7 +5,8 @@ module VisualSettings
   V_LINES_WITH_SPACE = ((V_LINE + (" " * SQ_WIDTH)) * 3) + V_LINE
 
   PROMPT      = ">> "
-  L_MARGIN    = " " * (PROMPT.size - 1)
+  TBL_MARGIN  = " " * (PROMPT.size - 1)
+  TXT_MARGIN  = TBL_MARGIN + " "
 end
 
 module UX
@@ -27,8 +28,52 @@ module UX
   end
 end
 
+module UI
+  require 'io/console'
+  include VisualSettings
+
+  TERMINATION_CHARS = { "\u0003" => "^C",
+                        "\u0004" => "^D",
+                        "\u001A" => "^Z" }
+
+  def get_char(args)
+    get_input(**args) { yield_char }
+  end
+
+  def get_string(args)
+    get_input(**args) { gets.strip }
+  end
+
+  def wait_for_any_key(message = PROMPT + "Press ANY KEY to continue")
+    puts message
+    yield_char
+  end
+
+  private
+
+  def get_input(message:, invalid_msg: "Invalid input!", expected: nil)
+    puts PROMPT + message
+    loop do
+      input = yield
+
+      break input unless (expected && !expected.include?(input)) || input.empty?
+
+      puts PROMPT + invalid_msg
+    end
+  end
+
+  def yield_char
+    char_input = STDIN.getch.downcase
+
+    termination_input = TERMINATION_CHARS[char_input]
+    abort("Program aborted (#{termination_input})") if termination_input
+
+    char_input
+  end
+end
+
 class Game
-  include UX
+  include UX, UI
 
   def initialize(players, board)
     @player1, @player2 = players
@@ -36,7 +81,7 @@ class Game
   end
 
   def play
-    start
+    intro
     next_move until finished?
     finish
   end
@@ -62,16 +107,16 @@ class Game
   end
 
   def display_result
-    win_mark = board.winning_mark
-    if win_mark
-      winner = (win_mark == player1.mark ? player1 : player2)
-      return prompt "#{winner} wins!"
-    end
+    return prompt "#{winner} wins!" if winner
+
     prompt "It's a tie!"
   end
 
   def display_welcome_message
     prompt "Welcome to Tic-Tac-Toe!"
+    prompt "Player marks are:"
+    players.each { |player| puts TXT_MARGIN + "#{player.mark} - #{player}" }
+    puts
   end
 
   def finish
@@ -84,6 +129,13 @@ class Game
     board.end_state?
   end
 
+  def intro
+    clear_screen
+    display_welcome_message
+    wait_for_any_key
+    clear_screen
+  end
+
   def next_move
     display_board
     current_player.make_move(board)
@@ -91,13 +143,16 @@ class Game
     clear_screen
   end
 
-  def sequence
-    @sequence ||= [player1, player2].shuffle
+  def players
+    [player1, player2]
   end
 
-  def start
-    clear_screen
-    display_welcome_message
+  def sequence
+    @sequence ||= players.shuffle
+  end
+
+  def winner
+    players.find { |player| player.mark == board.winning_mark }
   end
 end
 
@@ -159,7 +214,7 @@ class Board
   end
 
   def board_strings
-    hr_border_line = L_MARGIN + H_LINE
+    hr_border_line = TBL_MARGIN + H_LINE
 
     (squares.each_slice(3).map { |row| [hr_border_line, row_strings(row)] } <<
       hr_border_line).flatten
@@ -184,12 +239,12 @@ class Board
   end
 
   def row_strings(row)
-    inner_empty_line = L_MARGIN + V_LINES_WITH_SPACE
+    inner_empty_line = TBL_MARGIN + V_LINES_WITH_SPACE
     [inner_empty_line, row_with_symbols(row), inner_empty_line]
   end
 
   def row_with_symbols(row)
-    L_MARGIN + V_LINE + row.map { |square| symbol(square) + V_LINE }.join
+    TBL_MARGIN + V_LINE + row.map { |square| symbol(square) + V_LINE }.join
   end
 
   def symbol(square)
@@ -235,11 +290,10 @@ class Player
 end
 
 class Human < Player
-  include UX
+  include UX, UI
 
   def choose_move(_board)
-    prompt "Please choose a move:"
-    gets.to_i
+    get_char(message: "Please choose a move:").to_i
   end
 
   def handle_invalid_move(board)
