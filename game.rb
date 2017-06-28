@@ -107,6 +107,11 @@ end
 class Game
   include UI, UX
 
+  SEQUENCE_ADJUST = { random:  :shuffle,
+                      player1: :itself,
+                      player2: :reverse }
+  STARTING_PLAYER = :random
+
   def initialize(players, board)
     @player1, @player2 = players
     @board = board
@@ -156,6 +161,10 @@ class Game
     clear_screen
   end
 
+  def new_sequence
+    players.send(SEQUENCE_ADJUST[STARTING_PLAYER])
+  end
+
   def next_move
     display_board
     current_player.make_move(board)
@@ -173,7 +182,7 @@ class Game
   end
 
   def sequence
-    @sequence ||= players.shuffle
+    @sequence ||= new_sequence
   end
 
   def winner
