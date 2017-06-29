@@ -82,39 +82,44 @@ module UI
   end
 end
 
-module GameHandler
-  extend UI, UX
+class GameHandler
+  include UI, UX
 
-  class << self
-    def display_goodbye_message
-      prompt "Thanks for playing. Bye!"
-    end
+  def initialize(players)
+    @players = players
+  end
 
-    def display_welcome_message
+  def start
+    display_welcome_message
+    loop do
+      new_game
+      break display_goodbye_message unless rematch?
       clear_screen
-      prompt "Welcome to Tic-Tac-Toe!"
     end
+  end
 
-    def new_game(players)
-      board   = Board.new
-      Game.new(players, board).play
-    end
+  private
 
-    def rematch?
-      answer = get_char(message:     "Would you like to play again? (y/n)",
-                        expected:    %w[y n],
-                        invalid_msg: "Please choose 'y' or 'n'")
-      answer == "y"
-    end
+  attr_reader :players
 
-    def start_ttt(players)
-      display_welcome_message
-      loop do
-        new_game(players)
-        break display_goodbye_message unless rematch?
-        clear_screen
-      end
-    end
+  def display_goodbye_message
+    prompt "Thanks for playing. Bye!"
+  end
+
+  def display_welcome_message
+    clear_screen
+    prompt "Welcome to Tic-Tac-Toe!"
+  end
+
+  def new_game
+    Game.new(players, Board.new).play
+  end
+
+  def rematch?
+    answer = get_char(message:     "Would you like to play again? (y/n)",
+                      expected:    %w[y n],
+                      invalid_msg: "Please choose 'y' or 'n'")
+    answer == "y"
   end
 end
 
@@ -174,7 +179,7 @@ class Game
   end
 
   def next_move
-    display_board
+    puts board
     current_player.make_move(board)
     adjust_sequence
     clear_screen
@@ -342,4 +347,4 @@ class Computer < Player
   end
 end
 
-GameHandler.start_ttt([Human.new("X"), Computer.new("O")])
+GameHandler.new([Human.new("X"), Computer.new("O")]).start
