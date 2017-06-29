@@ -6,7 +6,6 @@ module VisualSettings
 
   PROMPT      = ">> "
   TBL_MARGIN  = " " * (PROMPT.size - 1)
-  TXT_MARGIN  = TBL_MARGIN + " "
 end
 
 module UX
@@ -30,7 +29,7 @@ end
 
 module UI
   require 'io/console'
-  include VisualSettings
+  include UX, VisualSettings
 
   TERMINATION_CHARS = { "\u0003" => "^C",
                         "\u0004" => "^D",
@@ -44,29 +43,40 @@ module UI
     get_input(**args) { gets.strip }
   end
 
-  def wait_for_any_key(message = PROMPT + "Press ANY KEY to continue")
-    puts message
+  def wait_for_any_key
+    prompt "Press ANY KEY to continue"
     yield_char
   end
 
   private
 
+  def fitting?(expected, input)
+    return false if     input.empty?
+    return true  unless expected
+
+    expected.include?(input)
+  end
+
   def get_input(message:, invalid_msg: "Invalid input!", expected: nil)
-    puts PROMPT + message
+    prompt message
     loop do
       input = yield
 
-      break input unless (expected && !expected.include?(input)) || input.empty?
+      return input if fitting?(expected, input)
 
-      puts PROMPT + invalid_msg
+      prompt invalid_msg
     end
+  end
+
+  def quit_if_terminating(char_input)
+    termination_input = TERMINATION_CHARS[char_input]
+    abort("Program aborted (#{termination_input})") if termination_input
   end
 
   def yield_char
     char_input = STDIN.getch.downcase
 
-    termination_input = TERMINATION_CHARS[char_input]
-    abort("Program aborted (#{termination_input})") if termination_input
+    quit_if_terminating(char_input)
 
     char_input
   end
@@ -85,6 +95,11 @@ module GameHandler
       prompt "Welcome to Tic-Tac-Toe!"
     end
 
+    def new_game(players)
+      board   = Board.new
+      Game.new(players, board).play
+    end
+
     def rematch?
       answer = get_char(message:     "Would you like to play again? (y/n)",
                         expected:    %w[y n],
@@ -92,11 +107,10 @@ module GameHandler
       answer == "y"
     end
 
-    def start_ttt
+    def start_ttt(players)
       display_welcome_message
-      players = [Human.new("X"), Computer.new("O")]
       loop do
-        Game.new(players, Board.new).play
+        new_game(players)
         break display_goodbye_message unless rematch?
         clear_screen
       end
@@ -121,7 +135,7 @@ class Game
   def play
     intro
     next_move until board.end_state?
-    display_board
+    puts board
     display_result
   end
 
@@ -137,10 +151,6 @@ class Game
     sequence.first
   end
 
-  def display_board
-    puts board
-  end
-
   def display_result
     return prompt "#{winner} wins!" if winner
 
@@ -149,7 +159,7 @@ class Game
 
   def display_marks_info
     prompt "Player marks are:"
-    players.each { |player| puts TXT_MARGIN + "#{player.mark} - #{player}" }
+    players.each { |player| prompt "#{player.mark} - #{player}" }
     puts
   end
 
@@ -316,14 +326,7 @@ class Human < Player
   end
 
   def handle_invalid_move(board)
-    valid_moves = board.unmarked
-    prompt(
-      if valid_moves.size == 1
-        "You can only choose #{valid_moves.first}!"
-      else
-        "Invalid move! Please choose #{join_or(valid_moves)}."
-      end
-    )
+    prompt "Invalid move! Please choose #{join_or(board.unmarked)}."
   end
 end
 
@@ -339,4 +342,4 @@ class Computer < Player
   end
 end
 
-GameHandler.start_ttt
+GameHandler.start_ttt([Human.new("X"), Computer.new("O")])
