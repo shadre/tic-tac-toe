@@ -86,7 +86,7 @@ module GameHandler
     end
 
     def rematch?
-      answer = get_char(message:     "Would you like to play again?",
+      answer = get_char(message:     "Would you like to play again? (y/n)",
                         expected:    %w[y n],
                         invalid_msg: "Please choose 'y' or 'n'")
       answer == "y"
@@ -113,19 +113,21 @@ class Game
   STARTING_PLAYER = :random
 
   def initialize(players, board)
-    @player1, @player2 = players
-    @board = board
+    @players  = players
+    @board    = board
+    @sequence = new_sequence
   end
 
   def play
     intro
-    next_move until finished?
-    outro
+    next_move until board.end_state?
+    display_board
+    display_result
   end
 
   private
 
-  attr_reader :board, :player1, :player2
+  attr_reader :board, :players, :sequence
 
   def adjust_sequence
     sequence.reverse!
@@ -151,10 +153,6 @@ class Game
     puts
   end
 
-  def finished?
-    board.end_state?
-  end
-
   def intro
     display_marks_info
     wait_for_any_key
@@ -170,19 +168,6 @@ class Game
     current_player.make_move(board)
     adjust_sequence
     clear_screen
-  end
-
-  def outro
-    display_board
-    display_result
-  end
-
-  def players
-    [player1, player2]
-  end
-
-  def sequence
-    @sequence ||= new_sequence
   end
 
   def winner
