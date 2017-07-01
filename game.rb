@@ -39,8 +39,7 @@ module UI
   end
 
   def wait_for_any_key
-    prompt "Press ANY KEY to continue"
-    yield_char
+    get_char(message: "Press ANY KEY to continue")
   end
 
   private
@@ -198,6 +197,12 @@ module BoardDrawing
   H_LINE_SYM    = "─"
   INTERSECT_SYM = "*"
 
+  def to_s
+    boardize(symbols)
+  end
+
+  private
+
   def add_bottom_line(row_array)
     row_array << hr_line
   end
@@ -230,10 +235,6 @@ module BoardDrawing
     squares.map { |number, value| value || "<#{number}>" }
   end
 
-  def to_s
-    boardize(symbols)
-  end
-
   def transform(symbols)
     symbols.each_slice(3).with_index.map do |values, idx|
       row_array = whole_row(values)
@@ -252,8 +253,6 @@ end
 
 class Board
   include BoardDrawing, UX
-
-  attr_reader :squares
 
   RANGE = (1..9)
   LINES = [1, 2, 3], [4, 5, 6], [7, 8, 9], # horizontals
@@ -295,7 +294,7 @@ class Board
 
   private
 
-  attr_writer :squares
+  attr_accessor :squares
 
   def all_same?(values)
     return nil unless values.all?
@@ -326,7 +325,7 @@ class Player
   attr_reader :mark, :name
 
   def initialize(mark)
-    @name = new_name
+    @name = assign_name
     @mark = mark
   end
 
@@ -340,16 +339,16 @@ class Player
 
   private
 
+  def assign_name
+    "Player"
+  end
+
   def choose_move(_board)
     raise NotImplementedError,
           "method not implemented in #{self.class}"
   end
 
   def handle_invalid_move(_board); end
-
-  def new_name
-    "Player"
-  end
 
   def to_s
     name
@@ -358,6 +357,8 @@ end
 
 class Human < Player
   include UI, UX
+
+  private
 
   def choose_move(_board)
     get_char(message: "Please choose a move:").to_i
@@ -369,13 +370,13 @@ class Human < Player
 end
 
 class Computer < Player
+  private
+
   def choose_move(board)
     board.unmarked.sample
   end
 
-  private
-
-  def new_name
+  def assign_name
     "Computer"
   end
 end
