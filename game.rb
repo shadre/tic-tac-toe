@@ -10,11 +10,10 @@ module UX
     system("cls") || system("clear")
   end
 
-  def join_or(array, separator = ", ", or_word = "or")
+  def join_or(array)
     return array.first if array.size < 2
 
-    array[-1] = "#{or_word} #{array[-1]}"
-    array.join(separator)
+    array[0..-2].join(", ") + " or #{array.last}"
   end
 
   def prompt(*messages)
@@ -45,10 +44,7 @@ module UI
   private
 
   def fitting?(expected, input)
-    return false if     input.empty?
-    return true  unless expected
-
-    expected.include?(input)
+    !expected || expected.include?(input)
   end
 
   def get_input(message:, invalid_msg: "Invalid input!", expected: nil)
@@ -56,7 +52,7 @@ module UI
     loop do
       input = yield
 
-      return input if fitting?(expected, input)
+      return input if !input.empty? && fitting?(expected, input)
 
       prompt invalid_msg
     end
@@ -84,24 +80,26 @@ class GameHandler
   end
 
   def start
+    clear_screen
     display_welcome_message
-    loop do
-      new_game
-      break display_goodbye_message unless rematch?
-      clear_screen
-    end
+    play
   end
 
   private
 
   attr_reader :players
 
+  def ask_about_rematch_decision
+    get_char(message:     "Would you like to play again? (y/n)",
+             expected:    %w[y n],
+             invalid_msg: "Please choose 'y' or 'n'")
+  end
+
   def display_goodbye_message
     prompt "Thanks for playing. Bye!"
   end
 
   def display_welcome_message
-    clear_screen
     prompt "Welcome to Tic-Tac-Toe!"
   end
 
@@ -109,11 +107,16 @@ class GameHandler
     Game.new(players, Board.new).play
   end
 
+  def play
+    loop do
+      new_game
+      break display_goodbye_message unless rematch?
+      clear_screen
+    end
+  end
+
   def rematch?
-    answer = get_char(message:     "Would you like to play again? (y/n)",
-                      expected:    %w[y n],
-                      invalid_msg: "Please choose 'y' or 'n'")
-    answer == "y"
+    ask_about_rematch_decision == "y"
   end
 end
 
@@ -142,10 +145,6 @@ class Game
 
   attr_reader :board, :players, :sequence
 
-  def adjust_sequence
-    sequence.reverse!
-  end
-
   def current_player
     sequence.first
   end
@@ -173,6 +172,10 @@ class Game
     clear_screen
   end
 
+  def move_sequence
+    sequence << sequence.shift
+  end
+
   def new_sequence
     players.send(SEQUENCE_ADJUST[STARTING_PLAYER])
   end
@@ -180,7 +183,7 @@ class Game
   def next_move
     display_board
     current_player.make_move(board)
-    adjust_sequence
+    move_sequence
     clear_screen
   end
 
@@ -238,6 +241,7 @@ module BoardDrawing
   def transform(symbols)
     symbols.each_slice(3).with_index.map do |values, idx|
       row_array = whole_row(values)
+
       idx == 2 ? row_array : add_bottom_line(row_array)
     end.flatten
   end
