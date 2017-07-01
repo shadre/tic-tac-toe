@@ -1,11 +1,6 @@
 module VisualSettings
-  H_LINE             = " *───────*───────*───────* "
-  V_LINE             = " | "
-  SQ_WIDTH           = 5
-  V_LINES_WITH_SPACE = ((V_LINE + (" " * SQ_WIDTH)) * 3) + V_LINE
-
-  PROMPT      = ">> "
-  TBL_MARGIN  = " " * (PROMPT.size - 1)
+  PROMPT     = ">> "
+  TBL_MARGIN = " " * (PROMPT.size - 1)
 end
 
 module UX
@@ -140,7 +135,7 @@ class Game
   def play
     intro
     next_move until board.end_state?
-    puts board
+    display_board
     display_result
   end
 
@@ -154,6 +149,11 @@ class Game
 
   def current_player
     sequence.first
+  end
+
+  def display_board
+    puts board
+    puts
   end
 
   def display_result
@@ -179,7 +179,7 @@ class Game
   end
 
   def next_move
-    puts board
+    display_board
     current_player.make_move(board)
     adjust_sequence
     clear_screen
@@ -190,8 +190,68 @@ class Game
   end
 end
 
+module BoardDrawing
+  include VisualSettings
+
+  SQUARE_WIDTH  = 7
+  V_LINE_SYM    = "|"
+  H_LINE_SYM    = "─"
+  INTERSECT_SYM = "*"
+
+  def add_bottom_line(row_array)
+    row_array << hr_line
+  end
+
+  def add_margins(str_array, margin = TBL_MARGIN)
+    str_array.map { |str| margin + str }
+  end
+
+  def adjust_widths(str_array)
+    str_array.map { |el| el.center(SQUARE_WIDTH) }
+  end
+
+  def blank_row_line
+    rowize([" "] * 3)
+  end
+
+  def boardize(symbols)
+    add_margins(transform(symbols)).join("\n")
+  end
+
+  def hr_line
+    rowize([H_LINE_SYM * SQUARE_WIDTH] * 3, INTERSECT_SYM)
+  end
+
+  def rowize(values, joining = V_LINE_SYM)
+    adjust_widths(values).join(joining)
+  end
+
+  def symbols
+    squares.map { |number, value| value || "<#{number}>" }
+  end
+
+  def to_s
+    boardize(symbols)
+  end
+
+  def transform(symbols)
+    symbols.each_slice(3).with_index.map do |values, idx|
+      row_array = whole_row(values)
+      idx == 2 ? row_array : add_bottom_line(row_array)
+    end.flatten
+  end
+
+  def values_row_line(values)
+    rowize(values)
+  end
+
+  def whole_row(values)
+    [blank_row_line, values_row_line(values), blank_row_line]
+  end
+end
+
 class Board
-  include UX
+  include BoardDrawing, UX
 
   attr_reader :squares
 
@@ -220,10 +280,6 @@ class Board
     squares.values.all?
   end
 
-  def to_s
-    board_strings.join("\n")
-  end
-
   def unmarked
     squares.reject { |_, mark| mark }
            .keys
@@ -247,13 +303,6 @@ class Board
     values.uniq.size == 1
   end
 
-  def board_strings
-    hr_border_line = TBL_MARGIN + H_LINE
-
-    (squares.each_slice(3).map { |row| [hr_border_line, row_strings(row)] } <<
-      hr_border_line).flatten
-  end
-
   def empty_board
     RANGE.map { |num| [num, nil] }
          .to_h
@@ -270,22 +319,6 @@ class Board
 
   def line_values
     LINES.map { |line| squares.values_at(*line) }
-  end
-
-  def row_strings(row)
-    inner_empty_line = TBL_MARGIN + V_LINES_WITH_SPACE
-    [inner_empty_line, row_with_symbols(row), inner_empty_line]
-  end
-
-  def row_with_symbols(row)
-    TBL_MARGIN + V_LINE + row.map { |square| symbol(square) + V_LINE }.join
-  end
-
-  def symbol(square)
-    number, mark = square
-
-    (mark ? mark : "<#{number}>")
-      .center(SQ_WIDTH)
   end
 end
 
