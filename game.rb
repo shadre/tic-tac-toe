@@ -10,6 +10,12 @@ module UX
     system("cls") || system("clear")
   end
 
+  def concat_on_both_sides(original, left, right = nil)
+    right ||= left
+
+    left + original + right
+  end
+
   def join_or(array)
     return array.first if array.size < 2
 
@@ -17,15 +23,19 @@ module UX
   end
 
   def print_in_border(text)
-    hr_border = TBL_MARGIN + "+" + "=" * (text.length + 2) + "+"
+    hr_line   = "".center(text.length + 2, "=")
+    hr_border = concat_on_both_sides(hr_line, "+")
+    text_line = concat_on_both_sides(text, "| ", " |")
 
-    puts hr_border
-    puts TBL_MARGIN + "| " + text + " |"
-    puts hr_border
+    puts with_margins([hr_border, text_line, hr_border])
   end
 
   def prompt(*messages)
     messages.each { |msg| puts PROMPT + msg }
+  end
+
+  def with_margins(str_array, margin = TBL_MARGIN)
+    str_array.map { |str| margin + str }
   end
 end
 
@@ -93,6 +103,8 @@ class Match
   def start
     clear_screen
     display_welcome_message
+    display_winning_condition
+    puts
     play
   end
 
@@ -128,28 +140,35 @@ class Match
     prompt "#{winner} wins the match!"
   end
 
-  def new_game
-    Game.new(players, Board.new).play
+  def display_winning_condition
+    prompt "First player to win #{POINTS_TO_WIN} games wins the match!"
   end
 
   def new_scoreboard
     Scoreboard.new(*players)
   end
 
+  def next_game
+    Game.new(players, Board.new).play
+    clear_screen
+    display_score
+  end
+
   def play
     loop do
-      until winner
-        new_game
-        clear_screen
-        display_score
-        check_winner
-      end
-      display_winner
-
+      play_games_until_winner
       break display_goodbye_message unless rematch?
       reset_score
       clear_screen
     end
+  end
+
+  def play_games_until_winner
+    until winner
+      next_game
+      check_winner
+    end
+    display_winner
   end
 
   def rematch?
@@ -185,10 +204,7 @@ class Game
     intro
     next_move until board.end_state?
     display_board
-    find_winner
-    update_points
-    display_result
-    wait_for_any_key
+    handle_outcome
   end
 
   private
@@ -219,6 +235,13 @@ class Game
 
   def find_winner
     self.winner = players.find { |player| player.mark == board.winning_mark }
+  end
+
+  def handle_outcome
+    find_winner
+    update_points
+    display_result
+    wait_for_any_key
   end
 
   def intro
@@ -265,10 +288,6 @@ module BoardDrawing
     row_array << hr_line
   end
 
-  def add_margins(str_array, margin = TBL_MARGIN)
-    str_array.map { |str| margin + str }
-  end
-
   def adjust_widths(str_array)
     str_array.map { |el| el.center(SQUARE_WIDTH) }
   end
@@ -278,7 +297,7 @@ module BoardDrawing
   end
 
   def boardize(symbols)
-    add_margins(transform(symbols)).join("\n")
+    with_margins(transform(symbols)).join("\n")
   end
 
   def hr_line
