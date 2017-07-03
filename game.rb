@@ -16,6 +16,14 @@ module UX
     array[0..-2].join(", ") + " or #{array.last}"
   end
 
+  def print_in_border(text)
+    hr_border = TBL_MARGIN + "+" + "=" * (text.length + 2) + "+"
+
+    puts hr_border
+    puts TBL_MARGIN + "| " + text + " |"
+    puts hr_border
+  end
+
   def prompt(*messages)
     messages.each { |msg| puts PROMPT + msg }
   end
@@ -72,11 +80,14 @@ module UI
   end
 end
 
-class GameHandler
+class Match
   include UI, UX
 
+  POINTS_TO_WIN = 2
+
   def initialize(players)
-    @players = players
+    @players    = players
+    @scoreboard = new_scoreboard
   end
 
   def start
@@ -87,7 +98,8 @@ class GameHandler
 
   private
 
-  attr_reader :players
+  attr_reader :players, :scoreboard
+  attr_accessor :winner
 
   def ask_about_rematch_decision
     get_char(message:     "Would you like to play again? (y/n)",
@@ -95,28 +107,63 @@ class GameHandler
              invalid_msg: "Please choose 'y' or 'n'")
   end
 
+  def check_winner
+    self.winner = players.find { |player| player.points == POINTS_TO_WIN }
+  end
+
   def display_goodbye_message
     prompt "Thanks for playing. Bye!"
+  end
+
+  def display_score
+    print_in_border(scoreboard.to_s)
+    puts
   end
 
   def display_welcome_message
     prompt "Welcome to Tic-Tac-Toe!"
   end
 
+  def display_winner
+    prompt "#{winner} wins the match!"
+  end
+
   def new_game
     Game.new(players, Board.new).play
   end
 
+  def new_scoreboard
+    Scoreboard.new(*players)
+  end
+
   def play
     loop do
-      new_game
+      until winner
+        new_game
+        clear_screen
+        display_score
+        check_winner
+      end
+      display_winner
+
       break display_goodbye_message unless rematch?
+      reset_score
       clear_screen
     end
   end
 
   def rematch?
     ask_about_rematch_decision == "y"
+  end
+
+  def reset_score
+    players.each(&:reset_points)
+  end
+
+  Scoreboard = Struct.new(:player1, :player2) do
+    def to_s
+      "#{player1} #{player1.points} : #{player2.points} #{player2}"
+    end
   end
 end
 
@@ -138,12 +185,16 @@ class Game
     intro
     next_move until board.end_state?
     display_board
+    find_winner
+    update_points
     display_result
+    wait_for_any_key
   end
 
   private
 
   attr_reader :board, :players, :sequence
+  attr_accessor :winner
 
   def current_player
     sequence.first
@@ -164,6 +215,10 @@ class Game
     prompt "Player marks are:"
     players.each { |player| prompt "#{player.mark} - #{player}" }
     puts
+  end
+
+  def find_winner
+    self.winner = players.find { |player| player.mark == board.winning_mark }
   end
 
   def intro
@@ -187,8 +242,8 @@ class Game
     clear_screen
   end
 
-  def winner
-    players.find { |player| player.mark == board.winning_mark }
+  def update_points
+    winner&.add_point
   end
 end
 
@@ -326,11 +381,16 @@ class Board
 end
 
 class Player
-  attr_reader :mark, :name
+  attr_reader :mark, :name, :points
 
   def initialize(mark)
-    @name = assign_name
-    @mark = mark
+    @name   = assign_name
+    @mark   = mark
+    reset_points
+  end
+
+  def add_point
+    self.points += 1
   end
 
   def make_move(board)
@@ -341,7 +401,13 @@ class Player
     end
   end
 
+  def reset_points
+    @points = 0
+  end
+
   private
+
+  attr_writer :points
 
   def assign_name
     "Player"
@@ -385,4 +451,4 @@ class Computer < Player
   end
 end
 
-GameHandler.new([Human.new("X"), Computer.new("O")]).start
+Match.new([Human.new("X"), Computer.new("O")]).start
