@@ -158,7 +158,7 @@ class Match
     loop do
       play_games_until_winner
       break display_goodbye_message unless rematch?
-      reset_score
+      reset_match
       clear_screen
     end
   end
@@ -175,8 +175,17 @@ class Match
     ask_about_rematch_decision == "y"
   end
 
+  def reset_match
+    reset_score
+    reset_winner
+  end
+
   def reset_score
     players.each(&:reset_points)
+  end
+
+  def reset_winner
+    self.winner = nil
   end
 
   Scoreboard = Struct.new(:player1, :player2) do
@@ -337,6 +346,8 @@ class Board
           [1, 4, 7], [2, 5, 8], [3, 6, 9], # verticals
           [1, 5, 9], [7, 5, 3]             # diagonals
 
+  attr_reader :squares
+
   def initialize
     @squares = empty_board
   end
@@ -349,12 +360,20 @@ class Board
     squares[num] = mark
   end
 
+  def empty?
+    marks.none?
+  end
+
   def end_state?
     full? || winning_mark
   end
 
   def full?
-    squares.values.all?
+    marks.all?
+  end
+
+  def marks
+    squares.values
   end
 
   def unmarked
@@ -372,7 +391,7 @@ class Board
 
   private
 
-  attr_accessor :squares
+  attr_writer :squares
 
   def all_same?(values)
     return nil unless values.all?
@@ -458,11 +477,101 @@ class Human < Player
   end
 end
 
-class Computer < Player
+module Minimax
   private
 
+  class BoardClone < Board
+    def initialize(cloned_board)
+      @squares = cloned_board.squares.dup
+    end
+  end
+
+  attr_reader :rival_mark
+
+  RIVAL = { ai:    :rival,
+            rival: :ai }
+  STRAT = { ai:    :max,
+            rival: :min }
+  WIN_VALUE  = 1
+  TIE_VALUE  = 0
+  LOSS_VALUE = -1
+
+  def best_choice(board)
+    detect_rival_mark(board)
+
+    moves = board.unmarked
+
+    move_values = {}
+    moves.each do |move|
+      value = minimax(board, move)
+      next if value == LOSS_VALUE
+      move_values[move] = value
+      break if value == WIN_VALUE
+    end
+
+    move_values.key(WIN_VALUE) || move_values.key(TIE_VALUE)
+  end
+
+  def best_value_for(player, move_values)
+    move_values.send(STRAT[player])
+  end
+
+  def copy(board)
+    BoardClone.new(board)
+  end
+
+  def detect_rival_mark(board)
+    @rival_mark = board.marks.find { |symbol| symbol && symbol != mark }
+  end
+
+  def end_state_value(board)
+    winning_mark = board.winning_mark
+    return TIE_VALUE unless winning_mark
+
+    (winning_mark == mark ? WIN_VALUE : LOSS_VALUE)
+  end
+
+  def explore_game_tree(game_state, player)
+    moves_evaluation = {}
+
+    game_state.unmarked.each do |move|
+      moves_evaluation[move] = minimax(game_state, move, player)
+    end
+
+    best_value_for(player, moves_evaluation.values)
+  end
+
+  def minimax(board, move, player = :ai)
+    game_state = copy(board)
+    opponent   = rival(player)
+
+    curr_mark  = (player == :ai ? mark : rival_mark)
+
+    game_state[move] = curr_mark
+
+    return end_state_value(game_state) if game_state.end_state?
+
+    explore_game_tree(game_state, opponent)
+  end
+
+  def rival(player)
+    RIVAL[player]
+  end
+end
+
+class Computer < Player
+  include Minimax
+
+  private
+
+  CORNER_SQ_CHOICES = [1, 3, 7, 9]
+
   def choose_move(board)
-    board.unmarked.sample
+    if board.empty?
+      CORNER_SQ_CHOICES.sample
+    else
+      best_choice(board)
+    end
   end
 
   def assign_name
