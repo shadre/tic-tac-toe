@@ -480,15 +480,13 @@ end
 module Minimax
   private
 
+  attr_accessor :analyzed_board
+
   class BoardClone < Board
     def initialize(cloned_board)
       @squares = cloned_board.squares.dup
     end
   end
-
-  attr_reader :rival_mark
-
-  CORNER_CHOICES = [1, 3, 7, 9]
 
   RIVAL = { ai:    :rival,
             rival: :ai }
@@ -499,34 +497,29 @@ module Minimax
   TIE_VALUE  = 0
   LOSS_VALUE = -1
 
-  def choose_move(board)
-    return random_corner if board.empty?
+  CORNER_CHOICES = [1, 3, 7, 9]
 
-    detect_rival_mark(board) unless rival_mark
-
-    moves = board.unmarked
-
-    move_values = {}
-    moves.each do |move|
-      value = minimax(board, move)
-      next if value == LOSS_VALUE
-      move_values[move] = value
-      break if value == WIN_VALUE
-    end
-
-    move_values.key(WIN_VALUE) || move_values.key(TIE_VALUE)
+  def available_moves_values(game_state, player)
+    game_state.unmarked.map { |move| minimax(game_state, move, player) }
   end
 
   def best_value_for(player, move_values)
     move_values.send(STRAT[player])
   end
 
-  def copy(board)
-    BoardClone.new(board)
+  def choose_move(board)
+    self.analyzed_board = board
+    chosen_move
   end
 
-  def detect_rival_mark(board)
-    @rival_mark = board.marks.find { |symbol| symbol && symbol != mark }
+  def chosen_move
+    return random_corner if analyzed_board.empty?
+
+    win_expectant_move || tie_expectant_move
+  end
+
+  def copy(board)
+    BoardClone.new(board)
   end
 
   def end_state_value(board)
@@ -536,35 +529,42 @@ module Minimax
     (winning_mark == mark ? WIN_VALUE : LOSS_VALUE)
   end
 
-  def explore_game_tree(game_state, player)
-    moves_evaluation = {}
-
-    game_state.unmarked.each do |move|
-      moves_evaluation[move] = minimax(game_state, move, player)
+  def find_move_by_value(value)
+    analyzed_board.unmarked.find do |move|
+      minimax(analyzed_board, move) == value
     end
-
-    best_value_for(player, moves_evaluation.values)
   end
 
   def minimax(board, move, player = :ai)
     game_state = copy(board)
-    opponent   = rival(player)
-
+    opponent   = rival_of(player)
     curr_mark  = (player == :ai ? mark : rival_mark)
 
     game_state[move] = curr_mark
 
     return end_state_value(game_state) if game_state.end_state?
 
-    explore_game_tree(game_state, opponent)
+    best_value_for(opponent, available_moves_values(game_state, opponent))
   end
 
   def random_corner
     CORNER_CHOICES.sample
   end
 
-  def rival(player)
+  def rival_mark
+    analyzed_board.marks.find { |symbol| symbol && symbol != mark }
+  end
+
+  def rival_of(player)
     RIVAL[player]
+  end
+
+  def tie_expectant_move
+    find_move_by_value(TIE_VALUE)
+  end
+
+  def win_expectant_move
+    find_move_by_value(WIN_VALUE)
   end
 end
 
