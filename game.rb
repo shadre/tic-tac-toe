@@ -488,16 +488,21 @@ module Minimax
 
   attr_reader :rival_mark
 
+  CORNER_CHOICES = [1, 3, 7, 9]
+
   RIVAL = { ai:    :rival,
             rival: :ai }
   STRAT = { ai:    :max,
             rival: :min }
+
   WIN_VALUE  = 1
   TIE_VALUE  = 0
   LOSS_VALUE = -1
 
-  def best_choice(board)
-    detect_rival_mark(board)
+  def choose_move(board)
+    return random_corner if board.empty?
+
+    detect_rival_mark(board) unless rival_mark
 
     moves = board.unmarked
 
@@ -554,6 +559,10 @@ module Minimax
     explore_game_tree(game_state, opponent)
   end
 
+  def random_corner
+    CORNER_CHOICES.sample
+  end
+
   def rival(player)
     RIVAL[player]
   end
@@ -563,16 +572,6 @@ class Computer < Player
   include Minimax
 
   private
-
-  CORNER_SQ_CHOICES = [1, 3, 7, 9]
-
-  def choose_move(board)
-    if board.empty?
-      CORNER_SQ_CHOICES.sample
-    else
-      best_choice(board)
-    end
-  end
 
   def assign_name
     "Computer"
